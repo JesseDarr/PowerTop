@@ -234,13 +234,13 @@ function Get-MemoryLines {
     .OUTPUTS
     System.String. Correctly formatted memory line.
     .EXAMPLE
-    Get-MemoryLines ----> MiB Mem:   3928.7 used,    499.8 total  ,   1481.0 free,   1948.0 cached
-                                     2048.0 pged,   2048.0 nonpged,      0.0 cmit,   2197.6 cmit lmt
+    Get-MemoryLines ----> MiB Mem:    3928.7 used     499.8 total      1481.0 free    1948.0 cached
+                                      2048.0 pged    2048.0 nonpged       0.0 cmit    2197.6 cmit lmt
 #>
     $mbMaker = 1024 * 1024
     $gbMaker = 1024 * 1024 * 1024
 
-    $prefix = "MiB Mem :"
+    $prefix = "MiB Mem:"
 
     # Get values in Byes
     $total        = (Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum
@@ -262,18 +262,7 @@ function Get-MemoryLines {
     $commited     = $commited     / $mbMaker
     $commitLimit  = $commitLimit  / $mbMaker
 
-    # Round
-    $inUse        = [Math]::Round($inUse,        1)
-    $total        = [Math]::Round($total,        1)
-    $free         = [Math]::Round($free,         1)
-    $cached       = [Math]::Round($cached,       1)
-    $pagedPool    = [Math]::Round($pagedPool,    1)
-    $nonPagedPool = [Math]::Round($nonPagedPool, 1)
-    $commited     = [Math]::Round($commited,     1)
-    $commitLimit  = [Math]::Round($commitLimit,  1)
-    
-
-    # Format trailing zeros
+    # Convert to string and format with 1 decimal place - not rounding b/c it's faster and this is accurate enough
     $inUse        = $inUse.ToString("0.0")        
     $total        = $total.ToString("0.0")
     $free         = $free.ToString("0.0")         
@@ -283,21 +272,46 @@ function Get-MemoryLines {
     $commited     = $commited.ToString("0.0")     
     $commitLimit  = $commitLimit.ToString("0.0")         
     
+    # Add leading spaces
+    if ($inUse.Length -gt 10) { $inuse = "ERR"}
+    $diff         = 10 - $inUse.Length 
+    $inUse        = " " * $diff + $inUse
     
-    #Get-MemoryLines ----> MiB Mem:   3928.7 used,    499.8 total  ,   1481.0 free ,   1948.0 cached
-    #                                 2048.0 pged,   2048.0 nonpged,      0.0 comit,   2197.6 commit limit
+
+    $diff         = 10 - $total.Length 
+    $total        = " " * $diff + $total
+
+    $diff         = 10 - $free.Length 
+    $free         = " " * $diff + $free
+
+    $diff         = 10 - $cached.Length 
+    $cached       = " " * $diff + $cached
+
+    $diff         = 10 - $pagedPool.Length 
+    $pagedPool    = " " * $diff + $pagedPool
+
+    $diff         = 10 - $nonPagedPool.Length 
+    $nonPagedPool = " " * $diff + $nonPagedPool
+
+    $diff         = 10 - $commited.Length 
+    $commited     = " " * $diff + $commited
+
+    $diff         = 10 - $commitLimit.Length 
+    $commitLimit  = " " * $diff + $commitLimit
+
+    $free = "  " + $free # adjust spacing for free
 
     # Convert to strings and add formatting
-    $inUse        = "   $inUse used,"
-    $total        = "   $total total,"    
-    $free         = "   $free free,"         
-    $cached       = "   $cached cached,"
-    $pagedPool    = "   $pagedPool pged,"
-    $nonPagedPool = "   $nonPagedPool  nonpged,"
-    $commited     = "   $commited cmit,"    
-    $commitLimit  = "   $commitLimit cmit lmt" 
+    $inUse        = "$inUse used"
+    $total        = "$total total"    
+    $free         = "$free free"         
+    $cached       = "$cached cached"
+    $pagedPool    = "$pagedPool pged"
+    $nonPagedPool = "$nonPagedPool nonpged"
+    $commited     = "$commited cmit"    
+    $commitLimit  = "$commitLimit cmit lmt" 
     
-    return "$prefix $inUse $total $free $cached `n           $pagedPool $nonPagedPool $commited $commitLimit"
+    return "$prefix $inUse $total $free $cached `n         $pagedPool $nonPagedPool $commited $commitLimit"
 }
 
 #################
