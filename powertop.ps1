@@ -162,6 +162,42 @@ function Get-TaskCounts {
     return $counts
 }
 
+function Format-MemoryData {
+<#
+.SYNOPSIS
+    Formats a double (bytes) for use in Get-MemoryLines
+    .DESCRIPTION
+    Formats a double (bytes) for use in Get-MemoryLines
+    .INPUTS
+    System.Double
+    System.Management.Automation.SwitchParameter
+    .OUTPUTS
+    System.String
+    .EXAMPLE
+    Format-MemoryData -Number $cache -BytesToMB
+    Format-MemoryData -Number $inUse
+#>
+    param (
+        [Double]$Number,
+        [Switch]$BytesToMB
+    )
+
+    # Convert to MB
+    if ($BytesToMB) {
+        $mbMaker = 1024 * 1024
+        $Number = $Number / $mbMaker
+    }
+
+    # Convert to string and format with 1 decimal place - not rounding b/c it's faster and this is accurate enough
+    $string = $Number.ToString("0.0")
+
+    # Add leading spaces
+    $diff = 10 - $string.Length
+    $string = " " * $diff + $string
+
+    return $string
+}
+
 #########################
 ##### Line Functions ####
 #########################
@@ -223,6 +259,33 @@ function Get-TasksLine {
     return "$prefix $total $running $ready $suspended $wait"
 }
 
+function Get-CPULine {
+<#
+    .SYNOPSIS
+    Creates the CPU line.
+    .DESCRIPTION
+    Creates the CPU line.
+    .INPUTS
+    None.
+    .OUTPUTS
+    System.String. Correctly formatted CPU line.
+    .EXAMPLE
+    Get-SummaryLine ----> %Cpu(s): 24.8 us,  0.5 sy,  0.0 ni, 73.6 id,  0.4 wa,  0.0 hi,  0.2 si,  0.0 st
+#>
+    #us = user
+    #sy = system (kernel)
+    #ni = ???
+    #id = idle
+    #wa = waiting for IO
+    #hi = hardware interrupts
+    #si = software interrups
+    # #st = some bullshit about time spent exposing a core to a hypervisor - I don't give a fuck about
+
+    $prefix = "%Cpu(s):"
+
+    return "$prefix"
+}
+
 function Get-MemoryLines {
 <#
     .SYNOPSIS
@@ -237,71 +300,37 @@ function Get-MemoryLines {
     Get-MemoryLines ----> MiB Mem:    3928.7 used     499.8 total      1481.0 free    1948.0 cached
                                       2048.0 pged    2048.0 nonpged       0.0 cmit    2197.6 cmit lmt
 #>
-    $mbMaker = 1024 * 1024
-    $gbMaker = 1024 * 1024 * 1024
-
     $prefix = "MiB Mem:"
 
     # Get values in Byes
-    $total        = (Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum
-    $free         = (Get-Counter -Counter "\Memory\Available Bytes"    ).CounterSamples.CookedValue
-    $cached       = (Get-Counter -Counter "\Memory\Cache Bytes"        ).CounterSamples.CookedValue
+    $total = (Get-Counter -Counter "\Numa Node Memory(*)\Total MBytes"    ).CounterSamples[-1].CookedValue
+    $free  = (Get-Counter -Counter "\Numa Node Memory(*)\Available MBytes").CounterSamples[-1].CookedValue
+
+    ### SOURCE: https://thewindowsupdate.com/2019/03/16/finally-a-windows-task-manager-performance-tab-blog/ ###
+    $cached  = (Get-Counter -Counter "\Memory\Cache Bytes"        ).CounterSamples.CookedValue
+    $cached += (Get-Counter -Counter "\Memory\Modified Page List Bytes").CounterSamples.CookedValue
+    $cached += (Get-Counter -Counter "\Memory\Standby Cache Normal Priority Bytes").CounterSamples.CookedValue
+    $cached += (Get-Counter -Counter "\Memory\Standby Cache Reserve Bytes").CounterSamples.CookedValue
+    
     $pagedPool    = (Get-Counter -Counter "\Memory\Pool Paged Bytes"   ).CounterSamples.CookedValue
     $nonPagedPool = (Get-Counter -Counter "\Memory\Pool Nonpaged Bytes").CounterSamples.CookedValue
     $commited     = (Get-Counter -Counter "\Memory\Committed Bytes"    ).CounterSamples.CookedValue
     $commitLimit  = (Get-Counter -Counter "\Memory\Commit Limit"       ).CounterSamples.CookedValue
-    $inUse        = $total - $free
 
-    # Convert to MB
-    $inUse        = $inUse        / $mbMaker
-    $total        = $total        / $mbMaker
-    $free         = $free         / $mbMaker
-    $cached       = $cached       / $mbMaker
-    $pagedPool    = $pagedPool    / $mbMaker
-    $nonPagedPool = $nonPagedPool / $mbMaker
-    $commited     = $commited     / $mbMaker
-    $commitLimit  = $commitLimit  / $mbMaker
+    $inUse        = $total - $free # calculate inUse
 
-    # Convert to string and format with 1 decimal place - not rounding b/c it's faster and this is accurate enough
-    $inUse        = $inUse.ToString("0.0")        
-    $total        = $total.ToString("0.0")
-    $free         = $free.ToString("0.0")         
-    $cached       = $cached.ToString("0.0")
-    $pagedPool    = $pagedPool.ToString("0.0")    
-    $nonPagedPool = $nonPagedPool.ToString("0.0") 
-    $commited     = $commited.ToString("0.0")     
-    $commitLimit  = $commitLimit.ToString("0.0")         
-    
-    # Add leading spaces
-    if ($inUse.Length -gt 10) { $inuse = "ERR"}
-    $diff         = 10 - $inUse.Length 
-    $inUse        = " " * $diff + $inUse
-    
-
-    $diff         = 10 - $total.Length 
-    $total        = " " * $diff + $total
-
-    $diff         = 10 - $free.Length 
-    $free         = " " * $diff + $free
-
-    $diff         = 10 - $cached.Length 
-    $cached       = " " * $diff + $cached
-
-    $diff         = 10 - $pagedPool.Length 
-    $pagedPool    = " " * $diff + $pagedPool
-
-    $diff         = 10 - $nonPagedPool.Length 
-    $nonPagedPool = " " * $diff + $nonPagedPool
-
-    $diff         = 10 - $commited.Length 
-    $commited     = " " * $diff + $commited
-
-    $diff         = 10 - $commitLimit.Length 
-    $commitLimit  = " " * $diff + $commitLimit
+    $cached       = Format-MemoryData -Number $cached       -BytesToMB
+    $pagedPool    = Format-MemoryData -Number $pagedPool    -BytesToMB
+    $nonPagedPool = Format-MemoryData -Number $nonPagedPool -BytesToMB
+    $commited     = Format-MemoryData -Number $commited     -BytesToMB
+    $commitLimit  = Format-MemoryData -Number $commitLimit  -BytesToMB
+    $total        = Format-MemoryData -Number $total
+    $free         = Format-MemoryData -Number $free
+    $inUse        = Format-MemoryData -Number $inUse
 
     $free = "  " + $free # adjust spacing for free
 
-    # Convert to strings and add formatting
+    # Convert to strings and add title
     $inUse        = "$inUse used"
     $total        = "$total total"    
     $free         = "$free free"         
@@ -321,17 +350,20 @@ function Get-MemoryLines {
 # This provides a faster refresh rate than:   while (1) { Render-Line1; Start-Sleep 1; Clear-Host }
 $summaryLine = Get-SummaryLine
 $taskLine    = Get-TasksLine
+$cpuLine     = Get-CPULine
 $memoryLines = Get-MemoryLines
 while (1) {
     $summaryLine 
     $taskLine
+    $cpuLine
     $memoryLines
     
     $summaryLine = Get-SummaryLine
     $taskLine    = Get-TasksLine
+    $cpuLine     = Get-CPULine
     $memoryLines = Get-MemoryLines
     
-    Start-Sleep 1
+    #Start-Sleep 1
     Clear-Host 
 }
 
