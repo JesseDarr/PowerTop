@@ -53,46 +53,6 @@ function Get-Users {
     return $formattedCount
 }
 
-function Get-ProcUtil {
-<#
-    .SYNOPSIS
-    Returns correctly formatted processor utilization.
-    .DESCRIPTION
-    Returns correctly formatted processor utilization in % rounded to 2 decimal places.
-    .INPUTS
-    None.
-    .OUTPUTS
-    System.String. Correctly formatted processor utilization.
-    .EXAMPLE
-    Get-ProcUtil ----> proc utilization: 72.05%
-#>
-    $util = (Get-Counter -Counter "\Processor(*)\% Processor Time").CounterSamples[-1].CookedValue
-    $roundedUtil = [Math]::Round($util, 2)
-    $string = "util: $roundedUtil %,"
-
-    return $string
-}
- 
-function Get-ProcIdle {
-<#
-    .SYNOPSIS
-    Returns correctly formatted processor idle.
-    .DESCRIPTION
-    Returns correctly formatted processor idle in % rounded to 2 decimal places.
-    .INPUTS
-    None.
-    .OUTPUTS
-    System.String. Co rrectly formatted processor idle.
-    .EXAMPLE
-    Get-ProcIdle ----> proc idle: 27.95.05%
-#>
-    $idle = (Get-Counter -Counter "\Processor(*)\% Idle Time").CounterSamples[-1].CookedValue
-    $roundedIdle = [Math]::Round($idle, 2)
-    $string = "idle: $roundedIdle %,"
-
-    return $string
-}
-
 function Get-NumCores {
 <#
     .SYNOPSIS
@@ -107,7 +67,7 @@ function Get-NumCores {
     Get-NumCores ----> core count: 4
 #>
     $numCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
-    $string = "core count: $numCores"
+    $string = "cores $numCores"
 
     return $string
 }
@@ -218,12 +178,10 @@ function Get-SummaryLine {
     $time   = Get-Date -Format "HH:mm:ss"
     $uptime = Get-FormattedUptime
     $users  = Get-Users
+ 
+    $cores = Get-NumCores
 
-    $procUtil = Get-ProcUtil
-    $procIdle = Get-ProcIdle
-    $numCores = Get-NumCores
-
-    return "$prefix $time $uptime $users $procUtil $procIdle $numCores"
+    return "$prefix  $time  $uptime  $users  $cores"
 }
 
 function Get-TasksLine {
@@ -250,40 +208,51 @@ function Get-TasksLine {
 
     # Format strings
     $prefix    = "Tasks:"
-    $total     = "$count total,"
-    $running   = "$running running,"
-    $ready     = "$ready ready,"
-    $suspended = "$suspended suspended,"
-    $wait      = "$wait wait"
+    $total     = " $count total,"
+    $running   = " $running running,"
+    $ready     = " $ready ready,"
+    $suspended = " $suspended suspended,"
+    $wait      = " $wait wait"
 
     return "$prefix $total $running $ready $suspended $wait"
 }
 
-function Get-CPULine {
+function Get-CPULines {
 <#
     .SYNOPSIS
-    Creates the CPU line.
+    Creates the CPU lines.
     .DESCRIPTION
-    Creates the CPU line.
+    Creates the CPU line. User Processor Information counter instead of Processor counter to
+    support processors with greater than 64 cores.
     .INPUTS
     None.
     .OUTPUTS
     System.String. Correctly formatted CPU line.
     .EXAMPLE
-    Get-SummaryLine ----> %Cpu(s): 24.8 us,  0.5 sy,  0.0 ni, 73.6 id,  0.4 wa,  0.0 hi,  0.2 si,  0.0 st
+    Get-CPULines ----> %Cpu(s): 24.8 us,  0.5 sy,  0.0 ni, 73.6 id,  0.4 wa,  0.0 hi,  0.2 si,  0.0 st
 #>
-    #us = user
-    #sy = system (kernel)
-    #ni = ???
-    #id = idle
-    #wa = waiting for IO
-    #hi = hardware interrupts
-    #si = software interrups
-    # #st = some bullshit about time spent exposing a core to a hypervisor - I don't give a fuck about
-
     $prefix = "%Cpu(s):"
 
-    return "$prefix"
+    $util  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
+    $idle  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
+    $user  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
+    $priv  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
+    $intr  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
+    $intr += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
+    
+    $util = $util.ToString("0.0")
+    $idle = $idle.ToString("0.0")
+    $user = $user.ToString("0.0")
+    $priv = $priv.ToString("0.0")
+    $intr = $intr.ToString("0.0")
+
+    $util = $util + "  util"
+    $idle = $idle + "  idle"
+    $user = $user + "  user"
+    $priv = $priv + "  priv"
+    $intr = $intr + "  intr"
+
+    return "$prefix $util $idle $user $priv $intr"
 }
 
 function Get-MemoryLines {
@@ -350,7 +319,7 @@ function Get-MemoryLines {
 # This provides a faster refresh rate than:   while (1) { Render-Line1; Start-Sleep 1; Clear-Host }
 $summaryLine = Get-SummaryLine
 $taskLine    = Get-TasksLine
-$cpuLine     = Get-CPULine
+$cpuLine     = Get-CPULines
 $memoryLines = Get-MemoryLines
 while (1) {
     $summaryLine 
@@ -360,7 +329,7 @@ while (1) {
     
     $summaryLine = Get-SummaryLine
     $taskLine    = Get-TasksLine
-    $cpuLine     = Get-CPULine
+    $cpuLine     = Get-CPULines
     $memoryLines = Get-MemoryLines
     
     #Start-Sleep 1
