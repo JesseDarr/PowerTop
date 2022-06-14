@@ -229,30 +229,30 @@ function Get-CPULines {
     .OUTPUTS
     System.String. Correctly formatted CPU line.
     .EXAMPLE
-    Get-CPULines ----> %Cpu(s): 24.8 us,  0.5 sy,  0.0 ni, 73.6 id,  0.4 wa,  0.0 hi,  0.2 si,  0.0 st
+    Get-CPULines ----> %Cpu(s): 24.8 utl,  0.5 idl,  0.0 usr, 73.6 sys,  0.4 int
 #>
     $prefix = "%Cpu(s):"
 
-    $util  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
-    $idle  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
-    $user  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
-    $priv  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
-    $intr  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
-    $intr += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
+    $utl  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
+    $idl  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
+    $usr  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
+    $sys  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
+    $int  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
+    $int += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
     
-    $util = $util.ToString("0.0")
-    $idle = $idle.ToString("0.0")
-    $user = $user.ToString("0.0")
-    $priv = $priv.ToString("0.0")
-    $intr = $intr.ToString("0.0")
+    $utl = $utl.ToString("0.0")
+    $idl = $idl.ToString("0.0")
+    $usr = $usr.ToString("0.0")
+    $sys = $sys.ToString("0.0")
+    $int = $int.ToString("0.0")
 
-    $util = $util + "  util"
-    $idle = $idle + "  idle"
-    $user = $user + "  user"
-    $priv = $priv + "  priv"
-    $intr = $intr + "  intr"
+    $utl = " $utl utl"
+    $idl = " $idl idl"
+    $usr = " $usr usr"
+    $sys = " $sys sys"
+    $int = " $int int"
 
-    return "$prefix $util $idle $user $priv $intr"
+    return "$prefix $utl, $idl, $usr, $sys, $int"
 }
 
 function Get-MemoryLines {
