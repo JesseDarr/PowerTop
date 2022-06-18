@@ -229,30 +229,30 @@ function Get-CPULines {
     .OUTPUTS
     System.String. Correctly formatted CPU line.
     .EXAMPLE
-    Get-CPULines ----> %Cpu(s): 24.8 us,  0.5 sy,  0.0 ni, 73.6 id,  0.4 wa,  0.0 hi,  0.2 si,  0.0 st
+    Get-CPULines ----> %Cpu(s): 24.8 utl,  0.5 idl,  0.0 usr, 73.6 sys,  0.4 int
 #>
     $prefix = "%Cpu(s):"
 
-    $util  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
-    $idle  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
-    $user  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
-    $priv  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
-    $intr  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
-    $intr += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
+    $utl  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
+    $idl  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
+    $usr  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
+    $sys  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
+    $int  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
+    $int += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
     
-    $util = $util.ToString("0.0")
-    $idle = $idle.ToString("0.0")
-    $user = $user.ToString("0.0")
-    $priv = $priv.ToString("0.0")
-    $intr = $intr.ToString("0.0")
+    $utl = $utl.ToString("0.0")
+    $idl = $idl.ToString("0.0")
+    $usr = $usr.ToString("0.0")
+    $sys = $sys.ToString("0.0")
+    $int = $int.ToString("0.0")
 
-    $util = $util + "  util"
-    $idle = $idle + "  idle"
-    $user = $user + "  user"
-    $priv = $priv + "  priv"
-    $intr = $intr + "  intr"
+    $utl = " $utl utl"
+    $idl = " $idl idl"
+    $usr = " $usr usr"
+    $sys = " $sys sys"
+    $int = " $int int"
 
-    return "$prefix $util $idle $user $priv $intr"
+    return "$prefix $utl, $idl, $usr, $sys, $int"
 }
 
 function Get-MemoryLines {
@@ -312,6 +312,83 @@ function Get-MemoryLines {
     return "$prefix $inUse $total $free $cached `n         $pagedPool $nonPagedPool $commited $commitLimit"
 }
 
+function Get-CPULines {
+    <#
+        .SYNOPSIS
+        Creates the CPU lines.
+        .DESCRIPTION
+        Creates the CPU line. User Processor Information counter instead of Processor counter to
+        support processors with greater than 64 cores.
+        .INPUTS
+        None.
+        .OUTPUTS
+        System.String. Correctly formatted CPU line.
+        .EXAMPLE
+        Get-CPULines ----> %Cpu(s): 24.8 utl,  0.5 idl,  0.0 usr, 73.6 sys,  0.4 int
+    #>
+        $prefix = "%Cpu(s):"
+    
+        $utl  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
+        $idl  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
+        $usr  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
+        $sys  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
+        $int  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
+        $int += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
+        
+        $utl = $utl.ToString("0.0")
+        $idl = $idl.ToString("0.0")
+        $usr = $usr.ToString("0.0")
+        $sys = $sys.ToString("0.0")
+        $int = $int.ToString("0.0")
+    
+        $utl = " $utl utl"
+        $idl = " $idl idl"
+        $usr = " $usr usr"
+        $sys = " $sys sys"
+        $int = " $int int"
+    
+        return "$prefix $utl, $idl, $usr, $sys, $int"
+    }
+    
+function Get-ProcessLines {
+<#
+    .SYNOPSIS
+    Creates the process lines.
+    .DESCRIPTION
+    Creates the process lines. Headings are as follows:
+
+    PID:     Process ID.
+    WS
+    PM
+    NPM
+    %MEM:    The share of physical memory used.
+    CPU(sec) Time in seconds used CPU
+
+    ##########################################################################################################################################
+    %CPU:    The share of CPU time used by the process since the last update. - (Get-Counter '\Process(*)\% Processor Time').CounterSamples
+    ##########################################################################################################################################
+
+    COMMAND: The command name or command line (name + options).
+    .INPUTS
+    None.
+    .OUTPUTS
+    System.String. Correctly formatted process lines.
+    .EXAMPLE
+    Get-ProcessLines
+#>
+    $procTable = Get-Process | Select-Object -first 10 Id, 
+                                                       Name, 
+                                                       WS, 
+                                                       PM, 
+                                                       NPM, 
+                                                       %CPU,
+                                                       @{Name = "%MEM"; Expression = { ($_.WS / (64 * 1024 * 1024 * 1024) * 100 ).ToString("0.00") }}, 
+                                                       @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} 
+                                                       | Format-Table
+
+    return $procTable
+}
+
 #################
 ##### Logic #####
 #################
@@ -321,17 +398,20 @@ $summaryLine = Get-SummaryLine
 $taskLine    = Get-TasksLine
 $cpuLine     = Get-CPULines
 $memoryLines = Get-MemoryLines
+$procLines   = Get-ProcessLines
 while (1) {
     $summaryLine 
     $taskLine
     $cpuLine
     $memoryLines
+    $procLines
     
     $summaryLine = Get-SummaryLine
     $taskLine    = Get-TasksLine
     $cpuLine     = Get-CPULines
     $memoryLines = Get-MemoryLines
-    
+    $procLines   = Get-ProcessLines
+
     #Start-Sleep 1
     Clear-Host 
 }
