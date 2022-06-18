@@ -312,6 +312,84 @@ function Get-MemoryLines {
     return "$prefix $inUse $total $free $cached `n         $pagedPool $nonPagedPool $commited $commitLimit"
 }
 
+function Get-CPULines {
+    <#
+        .SYNOPSIS
+        Creates the CPU lines.
+        .DESCRIPTION
+        Creates the CPU line. User Processor Information counter instead of Processor counter to
+        support processors with greater than 64 cores.
+        .INPUTS
+        None.
+        .OUTPUTS
+        System.String. Correctly formatted CPU line.
+        .EXAMPLE
+        Get-CPULines ----> %Cpu(s): 24.8 utl,  0.5 idl,  0.0 usr, 73.6 sys,  0.4 int
+    #>
+        $prefix = "%Cpu(s):"
+    
+        $utl  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
+        $idl  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
+        $usr  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
+        $sys  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
+        $int  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
+        $int += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
+        
+        $utl = $utl.ToString("0.0")
+        $idl = $idl.ToString("0.0")
+        $usr = $usr.ToString("0.0")
+        $sys = $sys.ToString("0.0")
+        $int = $int.ToString("0.0")
+    
+        $utl = " $utl utl"
+        $idl = " $idl idl"
+        $usr = " $usr usr"
+        $sys = " $sys sys"
+        $int = " $int int"
+    
+        return "$prefix $utl, $idl, $usr, $sys, $int"
+    }
+    
+function Get-ProcessLines {
+<#
+    .SYNOPSIS
+    Creates the process lines.
+    .DESCRIPTION
+    Creates the process lines. Headings are as follows:
+
+    PID:     Process ID.
+    WS
+    PM
+    NPM
+    
+    %MEM:    The share of physical memory used.
+    CPU(sec) Time in seconds used CPU
+    #######################################################################################################################################################################################
+    %CPU:    The share of CPU time used by the process since the last update. - (Get-Counter '\Process(*)\% Processor Time').CounterSamples | Where-Object {$_.CookedValue -gt 5}
+    #######################################################################################################################################################################################
+
+
+    
+    COMMAND: The command name or command line (name + options).
+    .INPUTS
+    None.
+    .OUTPUTS
+    System.String. Correctly formatted process lines.
+    .EXAMPLE
+    Get-ProcessLines
+#>
+    $prefix = "Process info goes here............................."
+
+    Get-Process | Sort WS -Descending | Select-Object -first 10 Id, Name, WS, PM, NPM, %CPU, @{Name = "%MEM"; Expression = { ($_.WS / (64 * 1024 * 1024 * 1024) * 100 ).ToString("0.000") }}, @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} | ft
+        # get all the lines
+    # add them into a single large string with breaks in it??
+
+    # or maybe we can just make it a table, and format it wide? damn that would be easy
+    Get-Process | Sort-Object 
+
+    return "$prefix"
+}
+
 #################
 ##### Logic #####
 #################
