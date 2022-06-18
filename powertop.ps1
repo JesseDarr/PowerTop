@@ -361,15 +361,13 @@ function Get-ProcessLines {
     WS
     PM
     NPM
-    
     %MEM:    The share of physical memory used.
     CPU(sec) Time in seconds used CPU
-    #######################################################################################################################################################################################
-    %CPU:    The share of CPU time used by the process since the last update. - (Get-Counter '\Process(*)\% Processor Time').CounterSamples | Where-Object {$_.CookedValue -gt 5}
-    #######################################################################################################################################################################################
 
+    ##########################################################################################################################################
+    %CPU:    The share of CPU time used by the process since the last update. - (Get-Counter '\Process(*)\% Processor Time').CounterSamples
+    ##########################################################################################################################################
 
-    
     COMMAND: The command name or command line (name + options).
     .INPUTS
     None.
@@ -378,16 +376,17 @@ function Get-ProcessLines {
     .EXAMPLE
     Get-ProcessLines
 #>
-    $prefix = "Process info goes here............................."
+    $procTable = Get-Process | Select-Object -first 10 Id, 
+                                                       Name, 
+                                                       WS, 
+                                                       PM, 
+                                                       NPM, 
+                                                       %CPU,
+                                                       @{Name = "%MEM"; Expression = { ($_.WS / (64 * 1024 * 1024 * 1024) * 100 ).ToString("0.00") }}, 
+                                                       @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} 
+                                                       | Format-Table
 
-    Get-Process | Sort WS -Descending | Select-Object -first 10 Id, Name, WS, PM, NPM, %CPU, @{Name = "%MEM"; Expression = { ($_.WS / (64 * 1024 * 1024 * 1024) * 100 ).ToString("0.000") }}, @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} | ft
-        # get all the lines
-    # add them into a single large string with breaks in it??
-
-    # or maybe we can just make it a table, and format it wide? damn that would be easy
-    Get-Process | Sort-Object 
-
-    return "$prefix"
+    return $procTable
 }
 
 #################
@@ -399,17 +398,20 @@ $summaryLine = Get-SummaryLine
 $taskLine    = Get-TasksLine
 $cpuLine     = Get-CPULines
 $memoryLines = Get-MemoryLines
+$procLines   = Get-ProcessLines
 while (1) {
     $summaryLine 
     $taskLine
     $cpuLine
     $memoryLines
+    $procLines
     
     $summaryLine = Get-SummaryLine
     $taskLine    = Get-TasksLine
     $cpuLine     = Get-CPULines
     $memoryLines = Get-MemoryLines
-    
+    $procLines   = Get-ProcessLines
+
     #Start-Sleep 1
     Clear-Host 
 }
