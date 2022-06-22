@@ -312,6 +312,25 @@ function Get-MemoryLines {
     return "$prefix $inUse $total $free $cached `n         $pagedPool $nonPagedPool $commited $commitLimit"
 }
 
+
+function Get-ProcessHeaderLine {
+<#
+    .SYNOPSIS
+    Creates the process header lines.
+    .DESCRIPTION
+    Creates the process header line.
+    .INPUTS
+    None.
+    .OUTPUTS
+    System.String. Correctly formatted process header line.
+    .EXAMPLE
+    Get-ProcessHeaderLine
+#>
+    $header = "   Id Name                 WS    PM    NPM %CPU %MEM CPU(sec)"
+
+    return $header
+}
+
 function Get-ProcessLines {
 <#
     .SYNOPSIS
@@ -363,9 +382,7 @@ function Get-ProcessLines {
         $counter++
     }
 
-    $outStrings
-
-    return $processes
+    return $outStrings
 }
 
 #################
@@ -373,24 +390,28 @@ function Get-ProcessLines {
 #################
 # Get line, display it, get next line, clear screen, display line, get next line, clear screen......
 # This provides a faster refresh rate than:   while (1) { Render-Line1; Start-Sleep 1; Clear-Host }
-$summaryLine   = Get-SummaryLine
-$taskLine      = Get-TasksLine
-$cpuLine       = Get-CPULines
-$memoryLines   = Get-MemoryLines
-$procLines     = Get-ProcessLines
+$summaryLine  = Get-SummaryLine
+$taskLine     = Get-TasksLine
+$cpuLine      = Get-CPULines
+$memoryLines  = Get-MemoryLines
+$procHeadLine = Get-ProcessHeaderLine
+$procLines    = Get-ProcessLines
+Clear-Host
 while (1) {
     $summaryLine 
     $taskLine
     $cpuLine
     $memoryLines
     Write-Host
+    Write-Host $procHeadLine -ForegroundColor Black -BackgroundColor White
     $procLines
     
-    $summaryLine   = Get-SummaryLine
-    $taskLine      = Get-TasksLine
-    $cpuLine       = Get-CPULines
-    $memoryLines   = Get-MemoryLines
-    $procLines     = Get-ProcessLines
+    $summaryLine  = Get-SummaryLine
+    $taskLine     = Get-TasksLine
+    $cpuLine      = Get-CPULines
+    $memoryLines  = Get-MemoryLines
+    $procHeadLine = Get-ProcessHeaderLine
+    $procLines    = Get-ProcessLines
 
     #Start-Sleep 1
     Clear-Host 
