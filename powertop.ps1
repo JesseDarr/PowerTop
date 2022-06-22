@@ -349,7 +349,7 @@ function Get-ProcessLines {
                                                        @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
                                                        @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
                                                        %CPU,
-                                                       @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbbMaker) * 100).ToString("0.00") }}, 
+                                                       @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbMaker) * 100).ToString("0.00") }}, 
                                                        @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} | Format-Table
 
     # Convert to String                                                       
