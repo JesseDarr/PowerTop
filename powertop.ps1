@@ -312,44 +312,6 @@ function Get-MemoryLines {
     return "$prefix $inUse $total $free $cached `n         $pagedPool $nonPagedPool $commited $commitLimit"
 }
 
-function Get-CPULines {
-    <#
-        .SYNOPSIS
-        Creates the CPU lines.
-        .DESCRIPTION
-        Creates the CPU line. User Processor Information counter instead of Processor counter to
-        support processors with greater than 64 cores.
-        .INPUTS
-        None.
-        .OUTPUTS
-        System.String. Correctly formatted CPU line.
-        .EXAMPLE
-        Get-CPULines ----> %Cpu(s): 24.8 utl,  0.5 idl,  0.0 usr, 73.6 sys,  0.4 int
-    #>
-        $prefix = "%Cpu(s):"
-    
-        $utl  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
-        $idl  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
-        $usr  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
-        $sys  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
-        $int  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
-        $int += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
-        
-        $utl = $utl.ToString("0.0")
-        $idl = $idl.ToString("0.0")
-        $usr = $usr.ToString("0.0")
-        $sys = $sys.ToString("0.0")
-        $int = $int.ToString("0.0")
-    
-        $utl = " $utl utl"
-        $idl = " $idl idl"
-        $usr = " $usr usr"
-        $sys = " $sys sys"
-        $int = " $int int"
-    
-        return "$prefix $utl, $idl, $usr, $sys, $int"
-    }
-    
 function Get-ProcessLines {
 <#
     .SYNOPSIS
@@ -376,17 +338,34 @@ function Get-ProcessLines {
     .EXAMPLE
     Get-ProcessLines
 #>
-    $procTable = Get-Process | Select-Object -first 10 Id, 
-                                                       Name, 
-                                                       WS, 
-                                                       PM, 
-                                                       NPM, 
-                                                       %CPU,
-                                                       @{Name = "%MEM"; Expression = { ($_.WS / (64 * 1024 * 1024 * 1024) * 100 ).ToString("0.00") }}, 
-                                                       @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} 
-                                                       | Format-Table
+    $mbMaker = 1024 * 1024
+    $gbMaker = 1024 * 1024 * 1024
 
-    return $procTable
+    $heading = "   Id Name                 WS    PM    NPM %CPU %MEM CPU(sec)"
+
+    $processes = Get-Process | Select-Object -first 5 Id, 
+                                                       Name, 
+                                                       @{Name = "WS" ; Expression = { ($_.WS  / $mbMaker).ToString("0.0") }}, 
+                                                       @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
+                                                       @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
+                                                       %CPU,
+                                                       @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbbMaker) * 100).ToString("0.00") }}, 
+                                                       @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} | Format-Table
+
+    # Convert to String                                                       
+    $procString = $processes | Out-String
+    # Split into lines
+    $procStrings = $procString.Split("`n")
+    # Loop through annd remove first 3 lines we don't need - this includes a blank line @ index 0
+    $counter = 0
+    foreach ($string in $procStrings) {
+        if ($counter -gt 2) { $outStrings += "`n" + $string } 
+        $counter++
+    }
+
+    $outStrings
+
+    return $processes
 }
 
 #################
@@ -394,23 +373,24 @@ function Get-ProcessLines {
 #################
 # Get line, display it, get next line, clear screen, display line, get next line, clear screen......
 # This provides a faster refresh rate than:   while (1) { Render-Line1; Start-Sleep 1; Clear-Host }
-$summaryLine = Get-SummaryLine
-$taskLine    = Get-TasksLine
-$cpuLine     = Get-CPULines
-$memoryLines = Get-MemoryLines
-$procLines   = Get-ProcessLines
+$summaryLine   = Get-SummaryLine
+$taskLine      = Get-TasksLine
+$cpuLine       = Get-CPULines
+$memoryLines   = Get-MemoryLines
+$procLines     = Get-ProcessLines
 while (1) {
     $summaryLine 
     $taskLine
     $cpuLine
     $memoryLines
+    Write-Host
     $procLines
     
-    $summaryLine = Get-SummaryLine
-    $taskLine    = Get-TasksLine
-    $cpuLine     = Get-CPULines
-    $memoryLines = Get-MemoryLines
-    $procLines   = Get-ProcessLines
+    $summaryLine   = Get-SummaryLine
+    $taskLine      = Get-TasksLine
+    $cpuLine       = Get-CPULines
+    $memoryLines   = Get-MemoryLines
+    $procLines     = Get-ProcessLines
 
     #Start-Sleep 1
     Clear-Host 
