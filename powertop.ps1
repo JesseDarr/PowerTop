@@ -1,3 +1,73 @@
+function Get-CounterData {
+<#
+    .SYNOPSIS
+    Returns hash table of all needed counter data.
+    .DESCRIPTION
+    Returns hash table of all needed counter data.  To be stored in a variable and accessed by keys passed
+    into other functoins.
+    .INPUTS
+    None.
+    .OUTPUTS
+    Hash table of all needed counter data.
+    .EXAMPLE
+    Get-CounterData
+#>
+    $counterData = @{} | Select-Object CPU, MEM
+
+    $cpuQueries = @("\Processor Information(*)\% Processor Time" 
+                    "\Processor Information(*)\% Idle Time"      
+                    "\Processor Information(*)\% User Time"      
+                    "\Processor Information(*)\% Privileged Time"
+                    "\Processor Information(*)\% Interrupt Time" 
+                    "\Processor Information(*)\% DPC Time")
+    
+    $memQueries = @("\Numa Node Memory(*)\Total MBytes"           
+                    "\Numa Node Memory(*)\Available MBytes"         
+                    "\Memory\Cache Bytes"                           
+                    "\Memory\Modified Page List Bytes"              
+                    "\Memory\Standby Cache Normal Priority Bytes"   
+                    "\Memory\Standby Cache Reserve Bytes"           
+                    "\Memory\Pool Paged Bytes"                      
+                    "\Memory\Pool Nonpaged Bytes"                   
+                    "\Memory\Committed Bytes"                       
+                    "\Memory\Commit Limit")
+
+    $queries = $cpuQueries + $memQueries
+    $results = (Get-Counter $queries).CounterSamples
+    
+
+
+
+
+
+
+    Get-CPULines
+    $utl  = (Get-Counter "\Processor Information(*)\% Processor Time" ).CounterSamples[-1].CookedValue
+    $idl  = (Get-Counter "\Processor Information(*)\% Idle Time"      ).CounterSamples[-1].CookedValue
+    $usr  = (Get-Counter "\Processor Information(*)\% User Time"      ).CounterSamples[-1].CookedValue
+    $sys  = (Get-Counter "\Processor Information(*)\% Privileged Time").CounterSamples[-1].CookedValue
+    $int  = (Get-Counter "\Processor Information(*)\% Interrupt Time" ).CounterSamples[-1].CookedValue
+    $int += (Get-Counter "\Processor Information(*)\% DPC Time"       ).CounterSamples[-1].CookedValue
+    
+    Get-MemoryLines
+    $total        = (Get-Counter -Counter "\Numa Node Memory(*)\Total MBytes"           ).CounterSamples[-1].CookedValue
+    $free         = (Get-Counter -Counter "\Numa Node Memory(*)\Available MBytes"       ).CounterSamples[-1].CookedValue
+    $cached       = (Get-Counter -Counter "\Memory\Cache Bytes"                         ).CounterSamples.CookedValue
+    $cached      += (Get-Counter -Counter "\Memory\Modified Page List Bytes"            ).CounterSamples.CookedValue
+    $cached      += (Get-Counter -Counter "\Memory\Standby Cache Normal Priority Bytes" ).CounterSamples.CookedValue
+    $cached      += (Get-Counter -Counter "\Memory\Standby Cache Reserve Bytes"         ).CounterSamples.CookedValue
+    $pagedPool    = (Get-Counter -Counter "\Memory\Pool Paged Bytes"                    ).CounterSamples.CookedValue
+    $nonPagedPool = (Get-Counter -Counter "\Memory\Pool Nonpaged Bytes"                 ).CounterSamples.CookedValue
+    $commited     = (Get-Counter -Counter "\Memory\Committed Bytes"                     ).CounterSamples.CookedValue
+    $commitLimit  = (Get-Counter -Counter "\Memory\Commit Limit"                        ).CounterSamples.CookedValue
+
+
+
+
+    return $counterData
+}
+
+
 #########################
 ### General Functions ###
 #########################
@@ -95,15 +165,15 @@ function Get-TaskCounts {
     # Each process with 1 or more running threads counts as a running process
     # Each process with 1 or more ready threads counts as a ready process
     # Each process with 1 or more suspended threads counts as a suspended process, all others count as a wait process
-    $running = 0
-    $ready = 0
+    $running   = 0
+    $ready     = 0
     $suspended = 0
     $wait      = 0
     foreach ($process in $Processes) {
         $runningThreads   = $process.Threads | Where-Object { $_.ThreadState -eq "Running" }
         $readyThreads     = $process.Threads | Where-Object { $_.ThreadState -eq "Ready" }
         $waitThreads      = $process.Threads | Where-Object { $_.ThreadState -eq "Wait"}
-        $suspendedThreads = $waitThreads     | Where-Object { $_.WaitReason -eq "Suspended" }
+        $suspendedThreads = $waitThreads     | Where-Object { $_.WaitReason  -eq "Suspended" }
 
         if ($runningThreads.Count -gt 0)   { $running += 1 }
         if ($readyThreads.Count -gt 0)     { $ready += 1 }
@@ -276,10 +346,10 @@ function Get-MemoryLines {
     $free  = (Get-Counter -Counter "\Numa Node Memory(*)\Available MBytes").CounterSamples[-1].CookedValue
 
     ### SOURCE: https://thewindowsupdate.com/2019/03/16/finally-a-windows-task-manager-performance-tab-blog/ ###
-    $cached  = (Get-Counter -Counter "\Memory\Cache Bytes"        ).CounterSamples.CookedValue
-    $cached += (Get-Counter -Counter "\Memory\Modified Page List Bytes").CounterSamples.CookedValue
+    $cached  = (Get-Counter -Counter "\Memory\Cache Bytes"                        ).CounterSamples.CookedValue
+    $cached += (Get-Counter -Counter "\Memory\Modified Page List Bytes"           ).CounterSamples.CookedValue
     $cached += (Get-Counter -Counter "\Memory\Standby Cache Normal Priority Bytes").CounterSamples.CookedValue
-    $cached += (Get-Counter -Counter "\Memory\Standby Cache Reserve Bytes").CounterSamples.CookedValue
+    $cached += (Get-Counter -Counter "\Memory\Standby Cache Reserve Bytes"        ).CounterSamples.CookedValue
     
     $pagedPool    = (Get-Counter -Counter "\Memory\Pool Paged Bytes"   ).CounterSamples.CookedValue
     $nonPagedPool = (Get-Counter -Counter "\Memory\Pool Nonpaged Bytes").CounterSamples.CookedValue
@@ -319,12 +389,13 @@ function Get-ProcessLines {
     .DESCRIPTION
     Creates the process lines. Headings are as follows:
 
-    PID:     Process ID
-    WS       Working Set
-    PM       Paged Memory
-    NPM      Non Paged Memory
-    %MEM:    The share of physical memory used
-    CPU(sec) Time in seconds used CPU
+    PID:        Process ID
+    WS          Working Set
+    PM          Paged Memory
+    NPM         Non Paged Memory
+    %MEM:       The share of physical memory used
+    CPU(sec)    Time in seconds used CPU
+    CommandLine Command line with flags
 
     ##########################################################################################################################################
     %CPU:    The share of CPU time used by the process since the last update. - (Get-Counter '\Process(*)\% Processor Time').CounterSamples
@@ -334,7 +405,7 @@ function Get-ProcessLines {
     .INPUTS
     None.
     .OUTPUTS
-    Array containing 1 String, and an array of strings.
+    Hashtable containg header and lines output.
     .EXAMPLE
     Get-ProcessLines
 #>
