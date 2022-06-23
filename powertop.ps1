@@ -312,37 +312,18 @@ function Get-MemoryLines {
     return "$prefix $inUse $total $free $cached `n         $pagedPool $nonPagedPool $commited $commitLimit"
 }
 
-
-function Get-ProcessHeaderLine {
-<#
-    .SYNOPSIS
-    Creates the process header lines.
-    .DESCRIPTION
-    Creates the process header line.
-    .INPUTS
-    None.
-    .OUTPUTS
-    System.String. Correctly formatted process header line.
-    .EXAMPLE
-    Get-ProcessHeaderLine
-#>
-    $header = "   Id Name                 WS    PM    NPM %CPU %MEM CPU(sec)"
-
-    return $header
-}
-
 function Get-ProcessLines {
 <#
     .SYNOPSIS
-    Creates the process lines.
+    Creates the process lines, and the header line.
     .DESCRIPTION
     Creates the process lines. Headings are as follows:
 
-    PID:     Process ID.
-    WS
-    PM
-    NPM
-    %MEM:    The share of physical memory used.
+    PID:     Process ID
+    WS       Working Set
+    PM       Paged Memory
+    NPM      Non Paged Memory
+    %MEM:    The share of physical memory used
     CPU(sec) Time in seconds used CPU
 
     ##########################################################################################################################################
@@ -353,36 +334,39 @@ function Get-ProcessLines {
     .INPUTS
     None.
     .OUTPUTS
-    System.String. Correctly formatted process lines.
+    Array containing 1 String, and an array of strings.
     .EXAMPLE
     Get-ProcessLines
 #>
     $mbMaker = 1024 * 1024
     $gbMaker = 1024 * 1024 * 1024
 
-    $heading = "   Id Name                 WS    PM    NPM %CPU %MEM CPU(sec)"
-
-    $processes = Get-Process | Select-Object -first 5 Id, 
+    $processes = Get-Process | Select-Object -first 15 Id, 
                                                        Name, 
                                                        @{Name = "WS" ; Expression = { ($_.WS  / $mbMaker).ToString("0.0") }}, 
                                                        @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
                                                        @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
-                                                       %CPU,
+                                                       @{Name = "%CPU"; Expression = { }},
                                                        @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbMaker) * 100).ToString("0.00") }}, 
-                                                       @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }} | Format-Table
+                                                       @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }},
+                                                       CommandLine | Format-Table
 
     # Convert to String                                                       
     $procString = $processes | Out-String
     # Split into lines
     $procStrings = $procString.Split("`n")
-    # Loop through annd remove first 3 lines we don't need - this includes a blank line @ index 0
+    
+    # Loop through annd remove lines we don't need,    
     $counter = 0
     foreach ($string in $procStrings) {
-        if ($counter -gt 2) { $outStrings += "`n" + $string } 
+        if ($counter -ge 3 -and $counter -le $procStrings.Length - 3 ) { $outStrings += $string + "`n" } 
+
+        if ($counter -eq 1) { $header = $string } # get the header line
         $counter++
     }
 
-    return $outStrings
+    return @{ header = $header 
+              lines = $outStrings }
 }
 
 #################
@@ -390,12 +374,11 @@ function Get-ProcessLines {
 #################
 # Get line, display it, get next line, clear screen, display line, get next line, clear screen......
 # This provides a faster refresh rate than:   while (1) { Render-Line1; Start-Sleep 1; Clear-Host }
-$summaryLine  = Get-SummaryLine
-$taskLine     = Get-TasksLine
-$cpuLine      = Get-CPULines
-$memoryLines  = Get-MemoryLines
-$procHeadLine = Get-ProcessHeaderLine
-$procLines    = Get-ProcessLines
+$summaryLine = Get-SummaryLine
+$taskLine    = Get-TasksLine
+$cpuLine     = Get-CPULines
+$memoryLines = Get-MemoryLines
+$procLines   = Get-ProcessLines
 Clear-Host
 while (1) {
     $summaryLine 
@@ -403,17 +386,15 @@ while (1) {
     $cpuLine
     $memoryLines
     Write-Host
-    Write-Host $procHeadLine -ForegroundColor Black -BackgroundColor White
-    $procLines
+    Write-Host $procLines['header'] -ForegroundColor Black -BackgroundColor White 
+    $procLines['lines']
     
-    $summaryLine  = Get-SummaryLine
-    $taskLine     = Get-TasksLine
-    $cpuLine      = Get-CPULines
-    $memoryLines  = Get-MemoryLines
-    $procHeadLine = Get-ProcessHeaderLine
-    $procLines    = Get-ProcessLines
+    $summaryLine = Get-SummaryLine
+    $taskLine    = Get-TasksLine
+    $cpuLine     = Get-CPULines
+    $memoryLines = Get-MemoryLines
+    $procLines   = Get-ProcessLines
 
-    #Start-Sleep 1
     Clear-Host 
 }
 
