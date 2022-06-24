@@ -39,7 +39,7 @@ function Get-CounterData {
     
     # Pull out CPU values and assign to hash table
     $cpu = @{}
-    $cpu.util = ($results | Where-Object { $_.Path -like "*processor information(_total)\% processor time"  }).CookedValue
+    $cpu.utl = ($results | Where-Object { $_.Path -like "*processor information(_total)\% processor time"   }).CookedValue
     $cpu.idl  = ($results | Where-Object { $_.Path -like "*processor information(_total)\% idle time"       }).CookedValue
     $cpu.usr  = ($results | Where-Object { $_.Path -like "*processor information(_total)\% user time"       }).CookedValue        
     $cpu.sys  = ($results | Where-Object { $_.Path -like "*processor information(_total)\% privileged time" }).CookedValue        
