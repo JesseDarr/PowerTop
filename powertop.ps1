@@ -39,7 +39,7 @@ function Get-CounterData {
     
     # Pull out CPU values and assign to hash table
     $cpu = @{}
-    $cpu.utl = ($results | Where-Object { $_.Path -like "*processor information(_total)\% processor time"   }).CookedValue
+    $cpu.utl  = ($results | Where-Object { $_.Path -like "*processor information(_total)\% processor time"  }).CookedValue
     $cpu.idl  = ($results | Where-Object { $_.Path -like "*processor information(_total)\% idle time"       }).CookedValue
     $cpu.usr  = ($results | Where-Object { $_.Path -like "*processor information(_total)\% user time"       }).CookedValue        
     $cpu.sys  = ($results | Where-Object { $_.Path -like "*processor information(_total)\% privileged time" }).CookedValue        
@@ -119,25 +119,6 @@ function Get-Users {
     return $formattedCount
 }
 
-function Get-NumCores {
-<#
-    .SYNOPSIS
-    Returns correctly formatted processor logical core count.
-    .DESCRIPTION
-    Returns correctly formatted processor logical core count.
-    .INPUTS
-    None.
-    .OUTPUTS
-    System.String. Correctly formatted processor logical core count.
-    .EXAMPLE
-    Get-NumCores ----> core count: 4
-#>
-    $numCores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
-    $string = "cores $numCores"
-
-    return $string
-}
-
 function Get-TaskCounts {
 <#
     .SYNOPSIS
@@ -179,10 +160,10 @@ function Get-TaskCounts {
     $wait = $wait - $running # cheap way to not count running threads without the overhead of additional Where-Object statements
 
     # Create and populate hashtable
-    $counts = @{} | Select-Object Running, Ready, Suspended, Wait
-    $counts.Running   = $running
-    $counts.Ready     = $ready
-    $counts.Suspended = $suspended
+    $counts = @{}
+    $counts.running   = $running
+    $counts.ready     = $ready
+    $counts.suspended = $suspended
     $counts.wait      = $wait
 
     return $counts
@@ -244,8 +225,7 @@ function Get-SummaryLine {
     $time   = Get-Date -Format "HH:mm:ss"
     $uptime = Get-FormattedUptime
     $users  = Get-Users
- 
-    $cores = Get-NumCores
+    $cores =  (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
 
     return "$prefix  $time  $uptime  $users  $cores"
 }
@@ -283,7 +263,7 @@ function Get-TasksLine {
     return "$prefix $total $running $ready $suspended $wait"
 }
 
-function Get-CPULines {
+function Get-CPULine {
 <#
     .SYNOPSIS
     Creates the CPU lines.
@@ -295,7 +275,7 @@ function Get-CPULines {
     .OUTPUTS
     System.String. Correctly formatted CPU line.
     .EXAMPLE
-    Get-CPULines -CounterData $counterData ----> %Cpu(s): 24.8 utl,  0.5 idl,  0.0 usr, 73.6 sys,  0.4 int
+    Get-CPULine -CounterData $counterData ----> %Cpu(s): 24.8 utl,  0.5 idl,  0.0 usr, 73.6 sys,  0.4 int
 #>
     param (
         [Parameter(Mandatory)][System.Collections.Hashtable]$CounterData
@@ -440,12 +420,13 @@ function Get-ProcessLines {
 #################
 # Get line, display it, get next line, clear screen, display line, get next line, clear screen......
 # This provides a faster refresh rate than:   while (1) { Render-Line1; Start-Sleep 1; Clear-Host }
-$counterData = Get-CounterData
-$summaryLine = Get-SummaryLine
-$taskLine    = Get-TasksLine
-$cpuLine     = Get-CPULines    -CounterData $counterData.cpu
-$memoryLines = Get-MemoryLines -CounterData $counterData.mem
-$procLines   = Get-ProcessLines
+$counterData = Get-CounterData                              
+$summaryLine = Get-SummaryLine                              
+$taskLine    = Get-TasksLine                                 
+$cpuLine     = Get-CPULine     -CounterData $counterData.cpu 
+$memoryLines = Get-MemoryLines -CounterData $counterData.mem 
+$procLines   = Get-ProcessLines                              
+
 Clear-Host
 while (1) {
     $summaryLine 
@@ -459,14 +440,9 @@ while (1) {
     $counterData = Get-CounterData
     $summaryLine = Get-SummaryLine
     $taskLine    = Get-TasksLine
-    $cpuLine     = Get-CPULines    -CounterData $counterData.cpu
+    $cpuLine     = Get-CPULine     -CounterData $counterData.cpu
     $memoryLines = Get-MemoryLines -CounterData $counterData.mem
     $procLines   = Get-ProcessLines
 
     Clear-Host 
 }
-
-
-
-
-
