@@ -54,8 +54,8 @@ function Get-CounterData {
     $mem.cached      += ($results | Where-Object { $_.Path -like "*memory\modified page list bytes"            }).CookedValue
     $mem.cached      += ($results | Where-Object { $_.Path -like "*memory\standby cache normal priority bytes" }).CookedValue
     $mem.cached      += ($results | Where-Object { $_.Path -like "*memory\standby cache reserve bytes"         }).CookedValue
-    $mem.pagedPool    = ($results | Where-Object { $_.Path -like "*memory\pool paged bytes"                    }).CookedValue
-    $mem.nonPagedPool = ($results | Where-Object { $_.Path -like "*memory\pool nonpaged bytes"                 }).CookedValue
+    $mem.pagedpool    = ($results | Where-Object { $_.Path -like "*memory\pool paged bytes"                    }).CookedValue
+    $mem.nonpagedpool = ($results | Where-Object { $_.Path -like "*memory\pool nonpaged bytes"                 }).CookedValue
     $mem.commited     = ($results | Where-Object { $_.Path -like "*memory\committed bytes"                     }).CookedValue
     $mem.commitLimit  = ($results | Where-Object { $_.Path -like "*memory\commit limit"                        }).CookedValue
 
@@ -344,21 +344,13 @@ function Get-MemoryLines {
 
     $prefix = "MiB Mem:"
 
-    # Get values in Byes
-    $total = (Get-Counter -Counter "\Numa Node Memory(*)\Total MBytes"    ).CounterSamples[-1].CookedValue
-    $free  = (Get-Counter -Counter "\Numa Node Memory(*)\Available MBytes").CounterSamples[-1].CookedValue
-
-    ### SOURCE: https://thewindowsupdate.com/2019/03/16/finally-a-windows-task-manager-performance-tab-blog/ ###
-    $cached  = (Get-Counter -Counter "\Memory\Cache Bytes"                        ).CounterSamples.CookedValue
-    $cached += (Get-Counter -Counter "\Memory\Modified Page List Bytes"           ).CounterSamples.CookedValue
-    $cached += (Get-Counter -Counter "\Memory\Standby Cache Normal Priority Bytes").CounterSamples.CookedValue
-    $cached += (Get-Counter -Counter "\Memory\Standby Cache Reserve Bytes"        ).CounterSamples.CookedValue
-    
-    $pagedPool    = (Get-Counter -Counter "\Memory\Pool Paged Bytes"   ).CounterSamples.CookedValue
-    $nonPagedPool = (Get-Counter -Counter "\Memory\Pool Nonpaged Bytes").CounterSamples.CookedValue
-    $commited     = (Get-Counter -Counter "\Memory\Committed Bytes"    ).CounterSamples.CookedValue
-    $commitLimit  = (Get-Counter -Counter "\Memory\Commit Limit"       ).CounterSamples.CookedValue
-
+    $total        = $CounterData.total
+    $free         = $CounterData.free
+    $cached       = $CounterData.cached
+    $pagedPool    = $CounterData.pagedpool
+    $nonPagedPool = $CounterData.nonPagedPool
+    $commited     = $CounterData.commited
+    $commitLimit  = $CounterData.commitLimit
     $inUse        = $total - $free # calculate inUse
 
     $cached       = Format-MemoryData -Number $cached       -BytesToMB
