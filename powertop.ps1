@@ -419,41 +419,66 @@ function Get-ProcessLines {
     # Join ids and newPercents
     $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
 
+
+
+
+
+
+
+
+
     ###########################################################################
     ########### 12.5 seconds to go through this loop, WHY?!!?! OPTOMIZE ######
     ###########################################################################
-    Write-Host "Entire Loop: " -NoNewline
-    $loop = Measure-Command {
+
+    # Write-Host "Entire Loop: " -NoNewline
+    # $loop = Measure-Command {
         $processInfo = [System.Collections.ArrayList]::new()
         foreach ($process in $processes) {
-            # Get CPU %
-            $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
-            if ($cpu.count -eq 1) { $cpu = $cpu / $cores}  
-            else                  { $cpu = 0 } # so we don't count the idle process
 
-            # Calculate CPU(sec)
-            if ($process.CPU) { $cpuSec = $process.CPU }
-            else              { $cpuSec = 0}
 
-            # Creat output hash table and start adding values to it
-            $output = @{}
-            $output.Id          = $process.Id
-            $output.Name        = $process.Name
-            $output.WS          = [math]::Round(($process.WS  / $mbMaker), 1)  
-            $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
-            $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
-            $output.CPU         = [math]::Round($cpu, 1)
-            $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2)
-            $output.CPUs        = [math]::Round($cpuSec, 1)
-            $output.CommandLine = $process.CommandLine
+            Write-Host "$($process.Name): " -NoNewline
+            $inside = Measure-Command {
+                # Get CPU %
+                $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
+                if ($cpu.count -eq 1) { $cpu = $cpu / $cores}  
+                else                  { $cpu = 0 } # so we don't count the idle process
 
-            $processInfo.Add($output)
+                # Calculate CPU(sec)
+                if ($process.CPU) { $cpuSec = $process.CPU }
+                else              { $cpuSec = 0}
+
+                # Creat output hash table and start adding values to it
+                $output = @{}
+                $output.Id          = $process.Id
+                $output.Name        = $process.Name
+                $output.WS          = [math]::Round(($process.WS  / $mbMaker), 1)  
+                $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
+                $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
+                $output.CPU         = [math]::Round($cpu, 1)
+                $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2)
+                $output.CPUs        = [math]::Round($cpuSec, 1)
+                $output.CommandLine = $process.CommandLine
+
+                $processInfo.Add($output) | Out-Null
+            }
+            Write-Host $inside -ForegroundColor Green
+
+
         }
-    }
-    Write-Host $loop -ForegroundColor Green
+    # }
+    # Write-Host $loop -ForegroundColor Green
+
     ###########################################################################
-    ########### 14-17 seconds to go through this loop, WHY?!!?! OPTOMIZE ######
+    ########### 12.5 seconds to go through this loop, WHY?!!?! OPTOMIZE ######
     ###########################################################################
+
+
+
+
+
+
+
 
     # Format everything into a table
     $processTable = $processInfo | Sort-Object CPU -Descending | Select-Object Id, 
