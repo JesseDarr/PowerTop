@@ -406,7 +406,7 @@ function Get-ProcessLines {
     $processes = Get-Process 
 
     # Make new percents array with replaced Path values so we can join on path
-    $newPercents = @()
+    $newPercents = [System.Collections.ArrayList]::new()
     foreach ($percent in $percents) {
         $output = @{}
         $output.Path         = $percent.Path.Replace("% processor time", "id process")
@@ -415,10 +415,13 @@ function Get-ProcessLines {
         $newPercents        += $output
     }
 
-    # Joint is and newPercents
+    # Join ids and newPercents
     $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
 
-    $processInfo = @()
+    ###########################################################################
+    ########### 14-17 seconds to go through this loop, WHY?!!?! OPTOMIZE ######
+    ###########################################################################
+    $processInfo = [System.Collections.ArrayList]::new()
     foreach ($process in $processes) {
         # Get CPU %
         $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
@@ -443,6 +446,9 @@ function Get-ProcessLines {
 
         $processInfo += $output
     }
+    ###########################################################################
+    ########### 14-17 seconds to go through this loop, WHY?!!?! OPTOMIZE ######
+    ###########################################################################
 
     # Format everything into a table
     $processTable = $processInfo | Sort-Object CPU -Descending | Select-Object Id, 
@@ -504,15 +510,3 @@ while (1) {
 
     Clear-Host 
 }
-
-    <#
-    $processes | Select-Object -first 15 Id, 
-                                         Name, 
-                                         @{Name = "WS" ; Expression = { ($_.WS  / $mbMaker).ToString("0.0") }}, 
-                                         @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
-                                         @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
-                                         @{Name = "%CPU"; Expression = { }},
-                                         @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbMaker) * 100).ToString("0.00") }}, 
-                                         @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }},
-                                         CommandLine | Format-Table
-                                         #>
