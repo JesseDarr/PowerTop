@@ -419,14 +419,6 @@ function Get-ProcessLines {
     # Join ids and newPercents
     $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
 
-
-
-
-
-
-
-
-
     ###########################################################################
     ########### 12.5 seconds to go through this loop, WHY?!!?! OPTOMIZE ######
     ###########################################################################
@@ -464,6 +456,7 @@ function Get-ProcessLines {
             }
             Write-Host $inside -ForegroundColor Green
 
+    $working = Join-Object -Left $processes -Right $percentsTable -LeftJoinProperty Id -RightJoinProperty CookedValue -RightProperties Percent -Type OnlyIfInBoth
 
         }
     # }
