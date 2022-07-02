@@ -1,3 +1,7 @@
+###
+### 1..99999999 | %{ $_ * $_ * $_ }
+###
+
 $numCores    = 16
 $proc        = (get-process -Id 2060)
 $prevCPUSecs = $proc.CPU
