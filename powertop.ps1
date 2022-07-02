@@ -403,71 +403,90 @@ function Get-ProcessLines {
     $cores     =  (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
     $mbMaker   = 1024 * 1024
     $gbMaker   = 1024 * 1024 * 1024
-    $processes = Get-Process 
+    Write-Host "A: " -NoNewline
+    $a = Measure-Command { $processes = Get-Process | Select-Object Id, Name, WS, PM, NPM, CPU, CommandLine }
+    Write-Host $a
 
-    # Make new percents array with replaced Path values so we can join on path
-    $newPercents = @()
-    foreach ($percent in $percents) {
-        $output = @{}
-        $output.Path         = $percent.Path.Replace("% processor time", "id process")
-        $output.InstanceName = $percent.InstanceName
-        $output.Percent      = $percent.CookedValue
-        $newPercents        += $output
+    Write-Host "B: " -NoNewline
+    $b = Measure-Command {
+        # Make new percents array with replaced Path values so we can join on path
+        $newPercents = [System.Collections.ArrayList]::new()
+        foreach ($percent in $percents) {
+            $output = @{}
+            $output.Path         = $percent.Path.Replace("% processor time", "id process")
+            $output.InstanceName = $percent.InstanceName
+            $output.Percent      = $percent.CookedValue
+            
+            $newPercents.Add($output)
+        }
     }
+    Write-Host $b
 
-    # Joint is and newPercents
-    $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
-
-    $processInfo = @()
-    foreach ($process in $processes) {
-        # Get CPU %
-        $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
-        if ($cpu.count -eq 1) { $cpu = $cpu / $cores}  
-        else                  { $cpu = 0 } # so we don't count the idle process
-
-        # Calculate CPU(sec)
-        if ($process.CPU) { $cpuSec = $process.CPU }
-        else              { $cpuSec = 0}
-
-        # Creat output hash table and start adding values to it
-        $output = @{}
-        $output.Id          = $process.Id
-        $output.Name        = $process.Name
-        $output.WS          = [math]::Round(($process.WS  / $mbMaker), 1)  
-        $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
-        $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
-        $output.CPU         = [math]::Round($cpu, 1)
-        $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2)
-        $output.CPUs        = [math]::Round($cpuSec, 1)
-        $output.CommandLine = $process.CommandLine
-
-        $processInfo += $output
+    Write-Host "C: " -NoNewline
+    $c = Measure-Command {
+        # Join ids and newPercents
+        $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
     }
+    Write-Host $c
 
-    # Format everything into a table
-    $processTable = $processInfo | Sort-Object CPU -Descending | Select-Object Id, 
-                                                 Name, 
-                                                 WS, 
-                                                 PM, 
-                                                 NPM,
-                                                 @{Name = "%CPU";     Expression = { $_.CPU  }}, 
-                                                 @{Name = "%MEM";     Expression = { $_.MEM  }}, 
-                                                 @{Name = "CPU(sec)"; Expression = { $_.CPUs }}, 
-                                                 CommandLine -First 10 | Format-Table
+    Write-Host "D: " -NoNewline
+    $d = Measure-Command {
+        $processInfo = [System.Collections.ArrayList]::new()
+        foreach ($process in $processes) { 
+            # Get CPU %
+            $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
+            if ($cpu.count -eq 1) { $cpu = $cpu / $cores}  
+            else                  { $cpu = 0 } # so we don't count the idle process
 
-    # Convert to String                                                       
-    $processString = $processTable | Out-String
-    # Split into lines
-    $processStrings = $processString.Split("`n")
-    
-    # Loop through annd remove lines we don't need,    
-    $counter = 0
-    foreach ($string in $processStrings) {
-        if ($counter -ge 3 -and $counter -le $processStrings.Length - 3 ) { $outStrings += $string + "`n" } 
+            # Calculate CPU(sec)
+            if ($process.CPU) { $cpuSec = $process.CPU }
+            else              { $cpuSec = 0}
 
-        if ($counter -eq 1) { $header = $string } # get the header line
-        $counter++
+            # Creat output hash table and start adding values to it
+            $output = @{}
+            $output.Id          = $process.Id
+            $output.Name        = $process.Name
+            $output.WS          = [math]::Round(($process.WS  / $mbMaker), 1)  
+            $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
+            $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
+            $output.CPU         = [math]::Round($cpu, 1)
+            $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2)
+            $output.CPUs        = [math]::Round($cpuSec, 1)
+            $output.CommandLine = $process.CommandLine
+
+            $processInfo.Add($output) | Out-Null
+        }
     }
+    Write-Host $d
+
+    Write-Host "E: " -NoNewline
+    $e = Measure-Command {
+        # Format everything into a table
+        $processTable = $processInfo | Sort-Object CPU -Descending | Select-Object Id, 
+                                                    Name, 
+                                                    WS, 
+                                                    PM, 
+                                                    NPM,
+                                                    @{Name = "%CPU";     Expression = { $_.CPU  }}, 
+                                                    @{Name = "%MEM";     Expression = { $_.MEM  }}, 
+                                                    @{Name = "CPU(sec)"; Expression = { $_.CPUs }}, 
+                                                    CommandLine -First 10 | Format-Table
+
+        # Convert to String                                                       
+        $processString = $processTable | Out-String
+        # Split into lines
+        $processStrings = $processString.Split("`n")
+        
+        # Loop through annd remove lines we don't need,    
+        $counter = 0
+        foreach ($string in $processStrings) {
+            if ($counter -ge 3 -and $counter -le $processStrings.Length - 3 ) { $outStrings += $string + "`n" } 
+
+            if ($counter -eq 1) { $header = $string } # get the header line
+            $counter++
+        }
+    }
+    Write-Host $e
 
     return @{ header = $header 
               lines  = $outStrings }
@@ -505,14 +524,6 @@ while (1) {
     Clear-Host 
 }
 
-    <#
-    $processes | Select-Object -first 15 Id, 
-                                         Name, 
-                                         @{Name = "WS" ; Expression = { ($_.WS  / $mbMaker).ToString("0.0") }}, 
-                                         @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
-                                         @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
-                                         @{Name = "%CPU"; Expression = { }},
-                                         @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbMaker) * 100).ToString("0.00") }}, 
-                                         @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }},
-                                         CommandLine | Format-Table
-                                         #>
+
+
+
