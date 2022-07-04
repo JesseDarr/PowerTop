@@ -1,4 +1,9 @@
 #########################
+######## Globals ########
+#########################
+$script:cores = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+
+#########################
 ### General Functions ###
 #########################
 function Get-CounterData {
@@ -230,13 +235,13 @@ function Get-SummaryLine {
     .EXAMPLE
     Get-SummaryLine ----> powertop - 23:19:43 up 11 days, 1:25, 1 user, proc utilization: 1.73 %, proc idle: 97.75 %, core count: 16
 #>
+
     $prefix = "powertop -"
     $time   = Get-Date -Format "HH:mm:ss"
     $uptime = Get-FormattedUptime
     $users  = Get-Users
-    $cores =  (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
 
-    return "$prefix  $time  $uptime  $users  $cores"
+    return "$prefix  $time  $uptime  $users  $Cores"
 }
 
 function Get-TasksLine {
@@ -400,93 +405,76 @@ function Get-ProcessLines {
     # Setup some variables
     $ids       = $CounterData.id
     $percents  = $CounterData.percent
-    $cores     =  (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
     $mbMaker   = 1024 * 1024
     $gbMaker   = 1024 * 1024 * 1024
-    Write-Host "A: " -NoNewline
-    $a = Measure-Command { $processes = Get-Process | Select-Object Id, Name, WS, PM, NPM, CPU, CommandLine }
-    Write-Host $a
+    $processes = Get-Process | Select-Object Id, Name, WS, PM, NPM, CPU, CommandLine
 
-    Write-Host "B: " -NoNewline
-    $b = Measure-Command {
-        # Make new percents array with replaced Path values so we can join on path
-        $newPercents = [System.Collections.ArrayList]::new()
-        foreach ($percent in $percents) {
-            $output = @{}
-            $output.Path         = $percent.Path.Replace("% processor time", "id process")
-            $output.InstanceName = $percent.InstanceName
-            $output.Percent      = $percent.CookedValue
-            
-            $newPercents.Add($output)
-        }
-    }
-    Write-Host $b
-
-    Write-Host "C: " -NoNewline
-    $c = Measure-Command {
-        # Join ids and newPercents
-        $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
-    }
-    Write-Host $c
-
-    Write-Host "D: " -NoNewline
-    $d = Measure-Command {
-        $processInfo = [System.Collections.ArrayList]::new()
-        foreach ($process in $processes) { 
-            # Get CPU %
-            $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
-            if ($cpu.count -eq 1) { $cpu = $cpu / $cores}  
-            else                  { $cpu = 0 } # so we don't count the idle process
-
-            # Calculate CPU(sec)
-            if ($process.CPU) { $cpuSec = $process.CPU }
-            else              { $cpuSec = 0}
-
-            # Creat output hash table and start adding values to it
-            $output = @{}
-            $output.Id          = $process.Id
-            $output.Name        = $process.Name
-            $output.WS          = [math]::Round(($process.WS  / $mbMaker), 1)  
-            $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
-            $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
-            $output.CPU         = [math]::Round($cpu, 1)
-            $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2)
-            $output.CPUs        = [math]::Round($cpuSec, 1)
-            $output.CommandLine = $process.CommandLine
-
-            $processInfo.Add($output) | Out-Null
-        }
-    }
-    Write-Host $d
-
-    Write-Host "E: " -NoNewline
-    $e = Measure-Command {
-        # Format everything into a table
-        $processTable = $processInfo | Sort-Object CPU -Descending | Select-Object Id, 
-                                                    Name, 
-                                                    WS, 
-                                                    PM, 
-                                                    NPM,
-                                                    @{Name = "%CPU";     Expression = { $_.CPU  }}, 
-                                                    @{Name = "%MEM";     Expression = { $_.MEM  }}, 
-                                                    @{Name = "CPU(sec)"; Expression = { $_.CPUs }}, 
-                                                    CommandLine -First 10 | Format-Table
-
-        # Convert to String                                                       
-        $processString = $processTable | Out-String
-        # Split into lines
-        $processStrings = $processString.Split("`n")
+    
+    # Make new percents array with replaced Path values so we can join on path
+    $newPercents = [System.Collections.ArrayList]::new()
+    foreach ($percent in $percents) {
+        $output = @{}
+        $output.Path         = $percent.Path.Replace("% processor time", "id process")
+        $output.InstanceName = $percent.InstanceName
+        $output.Percent      = $percent.CookedValue
         
-        # Loop through annd remove lines we don't need,    
-        $counter = 0
-        foreach ($string in $processStrings) {
-            if ($counter -ge 3 -and $counter -le $processStrings.Length - 3 ) { $outStrings += $string + "`n" } 
-
-            if ($counter -eq 1) { $header = $string } # get the header line
-            $counter++
-        }
+        $newPercents.Add($output)
     }
-    Write-Host $e
+    
+    # Join ids and newPercents
+    $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
+    
+    
+    $processInfo = [System.Collections.ArrayList]::new()
+    foreach ($process in $processes) { 
+        # Get CPU %
+        $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
+        if ($cpu.count -eq 1) { $cpu = $cpu / $Cores}  
+        else                  { $cpu = 0 } # so we don't count the idle process
+
+        # Calculate CPU(sec)
+        if ($process.CPU) { $cpuSec = $process.CPU }
+        else              { $cpuSec = 0}
+
+        # Creat output hash table and start adding values to it
+        $output = @{}
+        $output.Id          = $process.Id
+        $output.Name        = $process.Name
+        $output.WS          = [math]::Round(($process.WS  / $mbMaker), 1)  
+        $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
+        $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
+        $output.CPU         = [math]::Round($cpu, 1)
+        $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2)
+        $output.CPUs        = [math]::Round($cpuSec, 1)
+        $output.CommandLine = $process.CommandLine
+
+        $processInfo.Add($output) | Out-Null
+    }
+
+    # Format everything into a table
+    $processTable = $processInfo | Sort-Object CPU -Descending | Select-Object Id, 
+                                                Name, 
+                                                WS, 
+                                                PM, 
+                                                NPM,
+                                                @{Name = "%CPU";     Expression = { $_.CPU  }}, 
+                                                @{Name = "%MEM";     Expression = { $_.MEM  }}, 
+                                                @{Name = "CPU(sec)"; Expression = { $_.CPUs }}, 
+                                                CommandLine -First 10 | Format-Table
+
+    # Convert to String                                                       
+    $processString = $processTable | Out-String
+    # Split into lines
+    $processStrings = $processString.Split("`n")
+    
+    # Loop through annd remove lines we don't need,    
+    $counter = 0
+    foreach ($string in $processStrings) {
+        if ($counter -ge 3 -and $counter -le $processStrings.Length - 3 ) { $outStrings += $string + "`n" } 
+
+        if ($counter -eq 1) { $header = $string } # get the header line
+        $counter++
+    }
 
     return @{ header = $header 
               lines  = $outStrings }
@@ -523,7 +511,3 @@ while (1) {
 
     Clear-Host 
 }
-
-
-
-
