@@ -5,14 +5,7 @@ function Get-PrevProcs {
 
     $prevProcs = [System.Collections.ArrayList]::new()
     foreach ($proc in $Processes) { 
-        $prevProc = @{}
-        $prevProc.Id   = $proc.Id
-        $prevProc.Name = $proc.Name
-
-        if (!$proc.CPU) { $prevProc.CPU = 0 }
-        else            { $prevProc.CPU = $proc.CPU }
-        
-        $null = $prevProcs.Add($prevProc)
+        $null = $prevProcs.Add(($proc | Select-Object ID, CPU, Name))
     }
     return $prevProcs
 }
@@ -29,7 +22,8 @@ $currentTime = Get-Date
 $procs       = Get-Process
 
 foreach ($proc in $procs) {
-    $currentCPUSecs = $proc.CPU
+    if (!$proc.CPU) { $currentCPUSecs = 0 }
+    else            { $currentCPUSecs = $proc.CPU }
     $prevCPUSecs    = ($prevProcs | Where-Object { $_.Id -eq $proc.Id}).CPU
 
     # Get Deltas
@@ -38,10 +32,9 @@ foreach ($proc in $procs) {
 
     # Output
     $out = ($deltaCPUSecs / ($deltaTime * $cores)) * 100
-    #Write-Host $proc.Name $out
+    Write-Host $proc.Name $out
 }
 
 # Set next prev variables
 $prevProcs = Get-PrevProcs -Processes $procs
 $prevTime  = $currentTime   
-  
