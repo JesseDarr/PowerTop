@@ -1,7 +1,3 @@
-###
-### 1..99999999 | %{ $_ * $_ * $_ }
-###
-
 $cores       = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
 $proc        = (get-process -Id 2060)
 $prevCPUSecs = $proc.CPU
