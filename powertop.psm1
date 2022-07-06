@@ -43,7 +43,7 @@ function Get-CounterData {
                      "\Process(*)\% Processor Time")
 
     $queries = $cpuQueries + $memQueries + $procQueries
-    $results = (Get-Counter $queries).CounterSamples # actual query
+    $results = (Get-Counter $queries -ErrorAction SilentlyContinue).CounterSamples # actual query
     
     # Pull out CPU values and assign to hash table
     $cpu = @{}
@@ -416,64 +416,33 @@ function Get-ProcessLines {
     .EXAMPLE
     Get-ProcessLines
 #>
-    param (
-        [Parameter(Mandatory)][System.Collections.Hashtable]$CounterData
-    )
+$mbMaker = 1024 * 1024
+$gbMaker = 1024 * 1024 * 1024
 
-    # Setup some variables
-    $mbMaker   = 1024 * 1024
-    $gbMaker   = 1024 * 1024 * 1024
-    $processes = Get-Process | Select-Object Id, Name, WS, PM, NPM, CPU, CommandLine    
-    
-    $processInfo = [System.Collections.ArrayList]::new()
-    foreach ($process in $processes) { 
-        # Get CPU %
-        $cpu = 1
-        
-        # Calculate CPU(sec)
-        if ($process.CPU) { $cpuSec = $process.CPU }
-        else              { $cpuSec = 0}
+$processes = Get-Process | Select-Object -first 15 Id, 
+                                                   Name, 
+                                                   @{Name = "WS" ; Expression = { ($_.WS  / $mbMaker).ToString("0.0") }}, 
+                                                   @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
+                                                   @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
+                                                   @{Name = "%CPU"; Expression = { }},
+                                                   @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbMaker) * 100).ToString("0.00") }}, 
+                                                   @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }},
+                                                   CommandLine | Format-Table
 
-        # Creat output hash table and start adding values to it
-        $output = @{}
-        $output.Id          = $process.Id
-        $output.Name        = $process.Name
-        $output.WS          = [math]::Round(($process.WS  / $mbMaker), 1)  
-        $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
-        $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
-        $output.CPU         = [math]::Round($cpu, 1)
-        $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2) ### replace 64 with variable ###
-        $output.CPUs        = [math]::Round($cpuSec, 1)
-        $output.CommandLine = $process.CommandLine
+# Convert to String                                                       
+$procString = $processes | Out-String
+# Split into lines
+$procStrings = $procString.Split("`n")
 
-        $processInfo.Add($output) | Out-Null
-    }
+# Loop through annd remove lines we don't need,    
+$counter = 0
+foreach ($string in $procStrings) {
+    if ($counter -ge 3 -and $counter -le $procStrings.Length - 3 ) { $outStrings += $string + "`n" } 
 
-    # Format everything into a table
-    $processTable = $processInfo | Sort-Object CPUs -Descending | Select-Object Id, 
-                                                Name, 
-                                                WS, 
-                                                PM, 
-                                                NPM,
-                                                @{Name = "%CPU";     Expression = { $_.CPU  }}, 
-                                                @{Name = "%MEM";     Expression = { $_.MEM  }}, 
-                                                @{Name = "CPU(sec)"; Expression = { $_.CPUs }}, 
-                                                CommandLine -First 15 | Format-Table
+    if ($counter -eq 1) { $header = $string } # get the header line
+    $counter++
+}
 
-    # Convert to String                                                       
-    $processString = $processTable | Out-String
-    # Split into lines
-    $processStrings = $processString.Split("`n")
-    
-    # Loop through annd remove lines we don't need,    
-    $counter = 0
-    foreach ($string in $processStrings) {
-        if ($counter -ge 3 -and $counter -le $processStrings.Length - 3 ) { $outStrings += $string + "`n" } 
-
-        if ($counter -eq 1) { $header = $string } # get the header line
-        $counter++
-    }
-
-    return @{ header = $header 
-              lines  = $outStrings }
+return @{ header = $header 
+          lines = $outStrings }
 }
