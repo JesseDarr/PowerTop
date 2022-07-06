@@ -421,35 +421,15 @@ function Get-ProcessLines {
     )
 
     # Setup some variables
-    $ids       = $CounterData.id
-    $percents  = $CounterData.percent
     $mbMaker   = 1024 * 1024
     $gbMaker   = 1024 * 1024 * 1024
-    $processes = Get-Process | Select-Object Id, Name, WS, PM, NPM, CPU, CommandLine
-
-    
-    # Make new percents array with replaced Path values so we can join on path
-    $newPercents = [System.Collections.ArrayList]::new()
-    foreach ($percent in $percents) {
-        $output = @{}
-        $output.Path         = $percent.Path.Replace("% processor time", "id process")
-        $output.InstanceName = $percent.InstanceName
-        $output.Percent      = $percent.CookedValue
-        
-        $newPercents.Add($output)
-    }
-    
-    # Join ids and newPercents
-    $percentsTable = Join-Object -Left $ids -Right $newPercents -LeftJoinProperty Path -RightJoinProperty Path -RightProperties Percent
-    
+    $processes = Get-Process | Select-Object Id, Name, WS, PM, NPM, CPU, CommandLine    
     
     $processInfo = [System.Collections.ArrayList]::new()
     foreach ($process in $processes) { 
         # Get CPU %
-        $cpu = ($percentsTable | Where-Object { $_.CookedValue -eq $process.id}).Percent
-        if ($cpu.count -eq 1) { $cpu = $cpu / $Cores}  
-        else                  { $cpu = 0 } # so we don't count the idle process
-
+        $cpu = 1
+        
         # Calculate CPU(sec)
         if ($process.CPU) { $cpuSec = $process.CPU }
         else              { $cpuSec = 0}
@@ -462,7 +442,7 @@ function Get-ProcessLines {
         $output.PM          = [math]::Round(($process.PM  / $mbMaker), 1)  
         $output.NPM         = [math]::Round(($process.NPM / $mbMaker), 1)  
         $output.CPU         = [math]::Round($cpu, 1)
-        $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2)
+        $output.MEM         = [math]::Round(($process.WS / (64 * $gbMaker) * 100), 2) ### replace 64 with variable ###
         $output.CPUs        = [math]::Round($cpuSec, 1)
         $output.CommandLine = $process.CommandLine
 
@@ -470,7 +450,7 @@ function Get-ProcessLines {
     }
 
     # Format everything into a table
-    $processTable = $processInfo | Sort-Object CPU -Descending | Select-Object Id, 
+    $processTable = $processInfo | Sort-Object CPUs -Descending | Select-Object Id, 
                                                 Name, 
                                                 WS, 
                                                 PM, 
@@ -478,7 +458,7 @@ function Get-ProcessLines {
                                                 @{Name = "%CPU";     Expression = { $_.CPU  }}, 
                                                 @{Name = "%MEM";     Expression = { $_.MEM  }}, 
                                                 @{Name = "CPU(sec)"; Expression = { $_.CPUs }}, 
-                                                CommandLine -First 10 | Format-Table
+                                                CommandLine -First 15 | Format-Table
 
     # Convert to String                                                       
     $processString = $processTable | Out-String
