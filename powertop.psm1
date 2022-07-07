@@ -416,33 +416,39 @@ function Get-ProcessLines {
     .EXAMPLE
     Get-ProcessLines
 #>
-$mbMaker = 1024 * 1024
-$gbMaker = 1024 * 1024 * 1024
+    $mbMaker = 1024 * 1024
+    $gbMaker = 1024 * 1024 * 1024
 
-$processes = Get-Process | Select-Object -first 15 Id, 
-                                                   Name, 
-                                                   @{Name = "WS" ; Expression = { ($_.WS  / $mbMaker).ToString("0.0") }}, 
-                                                   @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
-                                                   @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
-                                                   @{Name = "%CPU"; Expression = { }},
-                                                   @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbMaker) * 100).ToString("0.00") }}, 
-                                                   @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }},
-                                                   CommandLine | Format-Table
+    ############################################
+    ### Later sorting functoinality will have to handle this carefully
+    ### We def need where-object when sorting on CPU, but I don't think
+    ### we need it for any other properties
+    ############################################
+    $processes = Get-Process | Where-Object { $_.CPU } | Sort-Object CPU -Descending
+    $processes = $processes | Select-Object -First 15 Id, 
+                                                    Name, 
+                                                    @{Name = "WS" ; Expression = { ($_.WS  / $mbMaker).ToString("0.0") }}, 
+                                                    @{Name = "PM" ; Expression = { ($_.PM  / $mbMaker).ToString("0.0") }},
+                                                    @{Name = "NPM"; Expression = { ($_.NPM / $mbMaker).ToString("0.0") }},
+                                                    @{Name = "%CPU"; Expression = { }},
+                                                    @{Name = "%MEM"; Expression = { ($_.WS / (64 * $gbMaker) * 100).ToString("0.00") }}, 
+                                                    @{Name = "CPU(sec)"; Expression = { $_.CPU.ToString("0.0") }},
+                                                    CommandLine | Format-Table
 
-# Convert to String                                                       
-$procString = $processes | Out-String
-# Split into lines
-$procStrings = $procString.Split("`n")
+    # Convert to String                                                       
+    $procString = $processes | Out-String
+    # Split into lines
+    $procStrings = $procString.Split("`n")
 
-# Loop through annd remove lines we don't need,    
-$counter = 0
-foreach ($string in $procStrings) {
-    if ($counter -ge 3 -and $counter -le $procStrings.Length - 3 ) { $outStrings += $string + "`n" } 
+    # Loop through annd remove lines we don't need,    
+    $counter = 0
+    foreach ($string in $procStrings) {
+        if ($counter -ge 3 -and $counter -le $procStrings.Length - 3 ) { $outStrings += $string + "`n" } 
 
-    if ($counter -eq 1) { $header = $string } # get the header line
-    $counter++
-}
+        if ($counter -eq 1) { $header = $string } # get the header line
+        $counter++
+    }
 
-return @{ header = $header 
-          lines = $outStrings }
+    return @{ header = $header 
+            lines = $outStrings }
 }
